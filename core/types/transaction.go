@@ -31,6 +31,7 @@ func NewTx(
 	}
 }
 
+// converts the transaction into bytes
 func (tx *Transaction) BytesStream() []byte {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
@@ -40,6 +41,7 @@ func (tx *Transaction) BytesStream() []byte {
 	return buf.Bytes()
 }
 
+// converts transaction bytes into a transaction
 func DecodeTxBytesStream(data []byte) *Transaction {
 	var tx Transaction
 	dec := gob.NewDecoder(bytes.NewReader(data))
