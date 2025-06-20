@@ -27,6 +27,8 @@
 package core
 
 import (
+	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/PulseCoinOrg/nexacoin/common"
@@ -54,6 +56,7 @@ type BlockChain struct {
 	Sane         bool
 	LastBlock    *types.Block
 	BlocksMemory map[common.Hash]*types.Block
+	Validators   *ValidatorPool
 }
 
 func NewChain() (*BlockChain, error) {
@@ -67,6 +70,7 @@ func NewChain() (*BlockChain, error) {
 	return &BlockChain{
 		Database:     db,
 		BlocksMemory: make(map[common.Hash]*types.Block),
+		Validators:   NewValidatorPool(),
 	}, nil
 }
 
@@ -87,6 +91,7 @@ func (chain *BlockChain) Last() (*types.Block, error) {
 		return nil, err
 	}
 	block := types.DecodeBlockBytesStream(value)
+	chain.LastBlock = block
 	return block, nil
 }
 
@@ -149,4 +154,59 @@ func (chain *BlockChain) SanityCheck() bool {
 
 	chain.Sane = true
 	return true
+}
+
+// validates the blocks from an electoral system.
+// a validator is picked from a pool of validators for now
+// a validator must stake a minimum of [x]nex to participate
+// if someone tries tricking the network, all of the staked crypto will be lost
+// TODO 'x' nex must be a reasonable amount as we start, but not reasonable enough that
+// everyone can participate.
+func (chain *BlockChain) pickValidator() (*Validator, error) {
+	prevBlock, err := chain.Previous()
+	if err != nil {
+		return nil, fmt.Errorf("error fetching second to last block")
+	}
+
+	chain.LastBlock = prevBlock
+
+	if chain.LastBlock == nil {
+		return nil, fmt.Errorf("LastBlock is nil")
+	}
+
+	address, err := chain.Validators.SelectValidator(chain.LastBlock.Hash.Bytes())
+	if err != nil {
+		return nil, ErrBlockChainValidatorSelectFailed
+	}
+
+	validator, ok := chain.Validators.Validators[address.Hex()]
+	if !ok || validator == nil {
+		return nil, fmt.Errorf("validator with address %s not found", address.Hex())
+	}
+
+	chain.Validators.SelectedValidator = validator
+	return validator, nil
+}
+
+// picks a validator and uses them to validate the latest block in the chain
+func (chain *BlockChain) ValidateLastBlock() bool {
+	validator, err := chain.pickValidator()
+	if err != nil {
+		slog.Error("Failed to pick validator", "err", err)
+		return false
+	}
+
+	lastBlock, err := chain.Last()
+	if err != nil || lastBlock == nil {
+		slog.Error("Failed to load last block", "err", err)
+		return false
+	}
+
+	addr, err := validator.GetValidatorAddress()
+	if addr == "" {
+		slog.Error("Failed to get validator address", "err", err)
+	}
+	slog.Info("validator has been chosen", "addr", addr)
+
+	return validator.ValidateBlock(lastBlock)
 }

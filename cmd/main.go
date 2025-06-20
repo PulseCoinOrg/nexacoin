@@ -28,10 +28,47 @@ package main
 
 import (
 	"log/slog"
+	"time"
+
+	"github.com/PulseCoinOrg/nexacoin/core"
+	"github.com/PulseCoinOrg/nexacoin/core/types"
+	"github.com/PulseCoinOrg/nexacoin/wallet"
 )
 
 func main() {
+	w, err := wallet.New()
+	Handle(err)
 
+	err = w.SaveDisk()
+	Handle(err)
+
+	chain, err := core.NewChain()
+	Handle(err)
+
+	v, err := core.NewValidator()
+	Handle(err)
+
+	err = chain.Validators.AddValidator(v)
+	Handle(err)
+
+	block1 := types.NewBlock(time.Now().Unix(), core.GenesisParentHash, []*types.Transaction{})
+	err = chain.Insert(block1)
+	Handle(err)
+
+	block2 := types.NewBlock(time.Now().Unix(), block1.Hash, []*types.Transaction{})
+	err = chain.Insert(block2)
+	Handle(err)
+
+	block3 := types.NewBlock(time.Now().Unix(), block2.Hash, []*types.Transaction{})
+	err = chain.Insert(block3)
+	Handle(err)
+
+	valid := chain.ValidateLastBlock()
+	if !valid {
+		slog.Error("chain validator has found an invalid block")
+	} else {
+		slog.Info("chain validated using validator")
+	}
 }
 
 func Handle(err error) {

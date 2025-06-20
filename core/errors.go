@@ -34,4 +34,6 @@ var (
 
 var (
 	ErrBlockChainInsertFailed = errors.New("failed to insert block into the chain")
+
+	ErrBlockChainValidatorSelectFailed = errors.New("failed to select validator for the chain")
 )

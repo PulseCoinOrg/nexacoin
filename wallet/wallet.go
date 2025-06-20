@@ -30,8 +30,16 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"io/ioutil"
+	"math/big"
 
 	"github.com/PulseCoinOrg/nexacoin/common"
+)
+
+var (
+	DefaultWalletPath = "./wallet.key"
 )
 
 type Wallet struct {
@@ -54,6 +62,36 @@ func New() (*Wallet, error) {
 	return &Wallet{
 		PublicKey:  pubKeyBytes,
 		PrivateKey: privKeyBytes,
+		Address:    common.MakeAddr(pubKeyBytes),
+	}, nil
+}
+
+func (w *Wallet) SaveDisk() error {
+	privKeyHex := hex.EncodeToString(w.PrivateKey)
+	return ioutil.WriteFile(DefaultWalletPath, []byte(privKeyHex), 0600)
+}
+
+func LoadFromDisk() (*Wallet, error) {
+	data, err := ioutil.ReadFile(DefaultWalletPath)
+	if err != nil {
+		return nil, errors.New("wallet not found; run `wallet.New()` and save it first")
+	}
+
+	privKeyBytes, err := hex.DecodeString(string(data))
+	if err != nil {
+		return nil, errors.New("failed to decode private key")
+	}
+
+	priv := new(ecdsa.PrivateKey)
+	priv.D = new(big.Int).SetBytes(privKeyBytes)
+	priv.PublicKey.Curve = elliptic.P256()
+	priv.PublicKey.X, priv.PublicKey.Y = priv.PublicKey.Curve.ScalarBaseMult(privKeyBytes)
+
+	pubKeyBytes := append(priv.PublicKey.X.Bytes(), priv.PublicKey.Y.Bytes()...)
+
+	return &Wallet{
+		PrivateKey: privKeyBytes,
+		PublicKey:  pubKeyBytes,
 		Address:    common.MakeAddr(pubKeyBytes),
 	}, nil
 }

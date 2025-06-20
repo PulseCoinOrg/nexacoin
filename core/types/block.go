@@ -45,6 +45,8 @@ type Block struct {
 	UncleHash    common.Hash // A hash of a block that is valid but not chosen to be apart of the chain
 	Transactions []*Transaction
 	TxHash       common.Hash
+	Height       int
+	// Nonce        int
 	// TODO Gas uint64 add this
 }
 
